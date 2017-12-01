@@ -2,13 +2,13 @@ package me.sr1.lickitung.huawei.model;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.support.v4.content.SharedPreferencesCompat;
-import android.text.TextUtils;
+
+import java.util.WeakHashMap;
 
 import me.sr1.lickitung.base.Singleton;
 
 /**
- * HuaweiAccessTokenManager
+ * 华为推送应用配置信息管理器
  * @author SR1
  */
 
@@ -26,42 +26,36 @@ public class HuaweiAccessTokenManager {
         return sInstance.get(context);
     }
 
-    private static String KEY_TOKEN = "KEY_TOKEN";
-
-    private static String KEY_EXPIRES = "KEY_EXPIRES";
-
     private final SharedPreferences mSharedPreferences;
 
-    private String mToken;
-
-    private long mExpiresIn;
+    private final WeakHashMap<String, ApplicationConfig> mApplicationConfigCache = new WeakHashMap<>();
 
     private HuaweiAccessTokenManager(Context context) {
         mSharedPreferences =
                 context.getSharedPreferences("HuaweiAccessTokenManager", Context.MODE_PRIVATE);
-        mToken = mSharedPreferences.getString(KEY_TOKEN, null);
-        mExpiresIn = mSharedPreferences.getLong(KEY_EXPIRES, 0);
     }
 
-    public synchronized boolean isTokenValid() {
-        return System.currentTimeMillis() < mExpiresIn && !TextUtils.isEmpty(mToken);
+    public synchronized ApplicationConfig addApplicationConfig(String packageName, String appId, String appSecret) {
+        ApplicationConfig applicationConfig = new ApplicationConfig(packageName, appId, appSecret);
+        applicationConfig.setComponent(mSharedPreferences);
+        applicationConfig.updateToken("", 0);
+        return applicationConfig;
     }
 
-    public synchronized String getToken() {
-        return mToken;
+    public synchronized ApplicationConfig getApplicationConfig(String packageName) {
+        return obtain(packageName);
     }
 
-    public synchronized void updateToken(String token, long expireIn) {
+    private ApplicationConfig obtain(String packageName) {
 
-        mToken = token;
-        // 计算过期时间，过期时间比实际时间提前5分钟
-        mExpiresIn = System.currentTimeMillis() + expireIn - 5 * 60 * 1000;
-
-        SharedPreferences.Editor editor = mSharedPreferences.edit();
-        editor.putString(KEY_TOKEN, mToken);
-        editor.putLong(KEY_EXPIRES, mExpiresIn);
-
-        SharedPreferencesCompat.EditorCompat.getInstance().apply(editor);
+        if (mApplicationConfigCache.containsKey(packageName)) {
+            return mApplicationConfigCache.get(packageName);
+        } else {
+            if (mSharedPreferences.contains(packageName)) {
+                return ApplicationConfig.get(packageName, mSharedPreferences);
+            } else {
+                return null;
+            }
+        }
     }
-
 }
